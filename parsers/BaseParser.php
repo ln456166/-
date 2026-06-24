@@ -328,6 +328,19 @@ abstract class BaseParser
                     }
                 }
             }
+
+            if (preg_match('/[_-](\d+)$/', $title, $m)) {
+                $ep = intval($m[1]);
+                if ($ep > 0 && $ep < 5000) {
+                    $before = preg_replace('/[_-]\d+$/', '', $title);
+                    if (mb_strlen($before, 'UTF-8') >= 2) {
+                        $lastChar = mb_substr($before, -1, 1, 'UTF-8');
+                        if (preg_match('/[\x{4e00}-\x{9fa5}a-zA-Z]/u', $lastChar)) {
+                            $candidates[] = ['ep' => $ep, 'score' => 80];
+                        }
+                    }
+                }
+            }
         }
 
         $htmlPatterns = [
@@ -428,6 +441,17 @@ abstract class BaseParser
             $before = trim($m[1]);
             if (mb_strlen($before, 'UTF-8') >= 2) {
                 $title = $before;
+            }
+        }
+
+        if (preg_match('/^(.*?)[_-](\d+)$/u', $title, $m)) {
+            $before = trim($m[1]);
+            $epNum = intval($m[2]);
+            if (mb_strlen($before, 'UTF-8') >= 2 && $epNum > 0 && $epNum < 5000) {
+                $lastChar = mb_substr($before, -1, 1, 'UTF-8');
+                if (preg_match('/[\x{4e00}-\x{9fa5}a-zA-Z]/u', $lastChar)) {
+                    $title = $before;
+                }
             }
         }
 

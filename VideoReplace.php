@@ -43,11 +43,13 @@ class VideoReplace
 
     public function replace($url = '', $name = '', $episode = 0, $parse = false)
     {
+        $originalUrl = $url;
         $platform = '';
+
         if (!empty($url)) {
             $parsed = $this->parseUrl($url);
             if ($parsed === false) {
-                return $this->error('无法解析视频播放地址');
+                return $this->buildError('无法解析视频播放地址', $originalUrl);
             }
             $name = $parsed['name'];
             $episode = $parsed['episode'];
@@ -55,17 +57,17 @@ class VideoReplace
         }
 
         if (empty($name)) {
-            return $this->error('视频名称不能为空');
+            return $this->buildError('视频名称不能为空', $originalUrl);
         }
 
         $video = $this->searchVideo($name);
         if (!$video) {
-            return $this->error('未找到对应的视频资源');
+            return $this->buildError('未找到对应的视频资源', $originalUrl);
         }
 
         $playUrl = $this->getEpisodeUrl($video, $episode);
         if (!$playUrl) {
-            return $this->error('未找到第 ' . $episode . ' 集的播放地址');
+            return $this->buildError('未找到第 ' . $episode . ' 集的播放地址', $originalUrl);
         }
 
         $finalUrl = $playUrl;
@@ -82,7 +84,7 @@ class VideoReplace
             'url' => $finalUrl,
             'data' => [
                 'resource_url' => $playUrl,
-                'original_url' => $url,
+                'original_url' => $originalUrl,
             ]
         ];
     }
@@ -423,13 +425,16 @@ class VideoReplace
         @file_put_contents($file, serialize($data));
     }
 
-    private function error($msg)
+    private function buildError($msg, $originalUrl = '')
     {
         return [
             'code' => 400,
-            'msg' => '解析失败',
+            'msg' => $msg,
             'url' => '',
-            'data' => ['resource_url' => '', 'original_url' => '']
+            'data' => [
+                'resource_url' => '',
+                'original_url' => $originalUrl,
+            ]
         ];
     }
 

@@ -13,9 +13,13 @@ $parse = isset($_GET['parse']) ? intval($_GET['parse']) : 0;
 
 if (empty($url) && empty($name)) {
     echo json_encode([
-        'code' => 1,
+        'code' => 400,
         'msg' => '参数错误，请提供 url 或 name 参数',
-        'data' => null,
+        'url' => '',
+        'data' => [
+            'resource_url' => '',
+            'original_url' => '',
+        ],
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -23,14 +27,14 @@ if (empty($url) && empty($name)) {
 $videoReplace = new VideoReplace();
 $result = $videoReplace->replace($url, $name, $episode, (bool)$parse);
 
-if ($redirect && $result['code'] === 0 && !empty($result['data']['play_url'])) {
-    header('Location: ' . $result['data']['play_url']);
+if ($redirect && $result['code'] === 200 && !empty($result['url'])) {
+    header('Location: ' . $result['url']);
     exit;
 }
 
 if ($format === 'text') {
-    if ($result['code'] === 0) {
-        echo $result['data']['play_url'];
+    if ($result['code'] === 200) {
+        echo $result['url'];
     } else {
         echo '错误: ' . $result['msg'];
     }
