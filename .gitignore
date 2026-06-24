@@ -1,0 +1,16 @@
+# 缓存文件
+cache/
+
+# ZIP包
+*.zip
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE配置
+.idea/
+.vscode/
+
+# 日志
+*.log
