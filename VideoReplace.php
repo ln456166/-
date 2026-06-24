@@ -71,10 +71,17 @@ class VideoReplace
         }
 
         $finalUrl = $playUrl;
+        $parseSuccess = false;
+        $parseMsg = '未启用解析';
+
         if ($parse && !empty($playUrl)) {
             $parseResult = $this->parsePlayUrl($playUrl);
-            if ($parseResult && !empty($parseResult['url'])) {
+            if ($parseResult && !empty($parseResult['url']) && $parseResult['success']) {
                 $finalUrl = $parseResult['url'];
+                $parseSuccess = true;
+                $parseMsg = $parseResult['msg'] ?? '解析成功';
+            } else {
+                $parseMsg = $parseResult['msg'] ?? '解析失败，返回原始地址';
             }
         }
 
@@ -85,6 +92,8 @@ class VideoReplace
             'data' => [
                 'resource_url' => $playUrl,
                 'original_url' => $originalUrl,
+                'parse_success' => $parseSuccess,
+                'parse_msg' => $parseMsg,
             ]
         ];
     }
@@ -434,6 +443,8 @@ class VideoReplace
             'data' => [
                 'resource_url' => '',
                 'original_url' => $originalUrl,
+                'parse_success' => false,
+                'parse_msg' => '',
             ]
         ];
     }

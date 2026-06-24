@@ -9,7 +9,7 @@ $name = isset($_GET['name']) ? trim($_GET['name']) : '';
 $episode = isset($_GET['episode']) ? intval($_GET['episode']) : 0;
 $format = isset($_GET['format']) ? trim($_GET['format']) : 'json';
 $redirect = isset($_GET['redirect']) ? intval($_GET['redirect']) : 0;
-$parse = isset($_GET['parse']) ? intval($_GET['parse']) : 0;
+$parse = isset($_GET['parse']) ? intval($_GET['parse']) : 1;
 
 if (empty($url) && empty($name)) {
     echo json_encode([
