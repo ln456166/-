@@ -408,6 +408,13 @@ abstract class BaseParser
         $title = preg_replace('/[\x{300A}\x{300B}]/u', '', $title);
         $title = preg_replace('/[\x{300C}\x{300D}\x{300E}\x{300F}]/u', '', $title);
 
+        // 清理视频类型前缀：官方 MV】、MV】、音乐】、鬼畜】、宣传】等
+        $title = preg_replace('/^[\【\[【【]?(官方[\s_-]?)?(MV|音乐|鬼畜|宣传|预告|舞蹈|动画|番剧|电影|综艺|纪录片|影视|电视剧)[\】\]][\s_-]?/u', '', $title);
+        // 清理单独的视频类型标签
+        $title = preg_replace('/^[\【\[【【]?(官方|自制|合作)[\】\]][\s_-]?/u', '', $title);
+        // 清理连续的特殊符号开头
+        $title = preg_replace('/^[\s_-】\]\[【\[]+/u', '', $title);
+
         $separators = ['-', '_', '|', '｜', '—', '·', '~', '～'];
         $title = $this->removeSiteSuffixFromSeparators($title, $separators);
 
