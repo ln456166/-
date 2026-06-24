@@ -5,92 +5,66 @@ class MgtvParser extends BaseParser
     protected $platform = 'mgtv';
     protected $platformName = '芒果TV';
     protected $hosts = ['mgtv.com', 'www.mgtv.com', 'm.mgtv.com'];
+    protected $mobileUrlTemplate = true;
+
+    protected $defaultTitleKeywords = [
+        '芒果TV', '芒果', 'mgtv', 'MGTV',
+        '高清视频', '视频', '在线观看',
+        '剧集', '电影', '综艺', '动漫',
+    ];
 
     public function parse($url, $parsedUrl)
     {
         $path = $parsedUrl['path'] ?? '';
         $host = $parsedUrl['host'] ?? '';
-        $name = '';
-        $episode = 1;
 
-        $mobileUrl = $url;
-        if (strpos($host, 'www.mgtv.com') !== false) {
-            $mobileUrl = str_replace('www.mgtv.com', 'm.mgtv.com', $url);
-        }
+        $apiName = '';
+        $apiEpisode = 1;
 
-        $mobileHtml = $this->httpGetMobile($mobileUrl);
-        if ($mobileHtml) {
-            $name = $this->extractNameFromMeta($mobileHtml);
-            if (empty($name)) $name = $this->extractNameFromTitle($mobileHtml);
-            if (empty($name)) $name = $this->extractNameFromJsonLd($mobileHtml);
-            $episode = $this->extractEpisodeFromHtml($mobileHtml, $episode);
-        }
-
-        if (empty($name) || $this->isDefaultTitle($name)) {
-            if (preg_match('/\/b\/(\d+)\/(\d+)\.html/', $path, $matches)) {
-                $vid = $matches[2];
-                $apiUrl = 'https://pcweb.api.mgtv.com/player/video?video_id=' . $vid;
-                $response = $this->httpGet($apiUrl);
-                if ($response) {
-                    $data = json_decode($response, true);
-                    if ($data && isset($data['data']['info']['title'])) {
-                        $apiName = $data['data']['info']['title'];
-                        if (!empty($apiName) && !$this->isDefaultTitle($apiName)) {
-                            $name = $apiName;
-                            if (isset($data['data']['info']['tname'])) {
-                                $epName = $data['data']['info']['tname'];
-                                if (preg_match('/第(\d+)[集期]/', $epName, $epMatches)) {
-                                    $episode = intval($epMatches[1]);
-                                }
-                            }
-                        }
-                    }
-                }
+        if (preg_match('/\/b\/(\d+)\/(\d+)\.html/', $path, $matches)) {
+            $vid = $matches[2];
+            $apiResult = $this->parseByApi($vid);
+            if ($apiResult) {
+                $apiName = $apiResult['name'];
+                $apiEpisode = $apiResult['episode'];
             }
         }
 
-        if (empty($name) || $this->isDefaultTitle($name)) {
-            $pcHtml = $this->httpGet($url);
-            if ($pcHtml) {
-                $pcName = $this->extractNameFromMeta($pcHtml);
-                if (empty($pcName)) $pcName = $this->extractNameFromTitle($pcHtml);
-                if (empty($pcName)) $pcName = $this->extractNameFromJsonLd($pcHtml);
+        $smartResult = $this->parseSmart($url, $parsedUrl);
 
-                if (!empty($pcName) && !$this->isDefaultTitle($pcName)) {
-                    $name = $pcName;
-                    $episode = $this->extractEpisodeFromHtml($pcHtml, $episode);
-                }
+        if ($apiName && !$this->isDefaultOrInvalid($apiName)) {
+            $cleaned = $this->cleanTitle($apiName);
+            if ($cleaned && mb_strlen($cleaned, 'UTF-8') >= 2) {
+                return ['name' => $cleaned, 'episode' => $apiEpisode, 'source' => 'api'];
             }
         }
 
-        if (!empty($name)) {
-            $name = $this->cleanTitle($name);
-            return ['name' => $name, 'episode' => $episode];
+        if ($smartResult) {
+            return $smartResult;
         }
 
         return false;
     }
 
-    private function isDefaultTitle($title)
+    private function parseByApi($vid)
     {
-        $defaultKeywords = [
-            '芒果TV',
-            'mgtv',
-            '芒果',
-            '首页',
-            '湖南卫视',
-        ];
+        $apiUrl = 'https://pcweb.api.mgtv.com/player/video?video_id=' . $vid;
+        $response = $this->httpGet($apiUrl);
+        if (!$response) return false;
 
-        foreach ($defaultKeywords as $keyword) {
-            if (mb_strtolower($title, 'UTF-8') === mb_strtolower($keyword, 'UTF-8')) {
-                return true;
+        $data = json_decode($response, true);
+        if (!$data || !isset($data['data']['info']['title'])) return false;
+
+        $name = $data['data']['info']['title'];
+        $episode = 1;
+
+        if (isset($data['data']['info']['tname'])) {
+            $epName = $data['data']['info']['tname'];
+            if (preg_match('/第(\d+)[集期]/', $epName, $epMatches)) {
+                $episode = intval($epMatches[1]);
             }
         }
 
-        if (mb_strlen($title, 'UTF-8') < 2) {
-            return true;
-        }
-
-        return false;
+        return ['name' => $name, 'episode' => $episode];
     }
 }

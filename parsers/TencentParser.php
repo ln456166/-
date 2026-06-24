@@ -5,60 +5,48 @@ class TencentParser extends BaseParser
     protected $platform = 'tencent';
     protected $platformName = '腾讯视频';
     protected $hosts = ['qq.com', 'v.qq.com', 'm.v.qq.com'];
+    protected $mobileUrlTemplate = true;
+
+    protected $defaultTitleKeywords = [
+        '腾讯视频', 'v.qq.com', '腾讯', 'QQ',
+        '中国', '热门', '推荐',
+    ];
 
     public function parse($url, $parsedUrl)
     {
         $path = $parsedUrl['path'] ?? '';
         $query = $parsedUrl['query'] ?? '';
         parse_str($query, $queryParams);
-        $name = '';
-        $episode = 1;
 
-        $vid = $this->extractVid($url, $path, $queryParams);
+        $vid = $this->extractVid($path, $queryParams);
+        $apiName = '';
+        $apiEpisode = 1;
 
         if (!empty($vid)) {
-            $apiUrl = 'https://vv.video.qq.com/getinfo?vids=' . $vid . '&platform=101001&charge=0&otype=json';
-            $response = $this->httpGet($apiUrl);
-            if ($response) {
-                $response = trim($response);
-                if (preg_match('/QZOutputJson=\((.*?)\);?$/s', $response, $matches)) {
-                    $json = json_decode($matches[1], true);
-                } else {
-                    $json = json_decode($response, true);
-                }
-                if ($json && isset($json['vl']['vi'][0])) {
-                    $videoInfo = $json['vl']['vi'][0];
-                    $name = $videoInfo['ti'] ?? '';
-                    if (isset($videoInfo['p']) && is_numeric($videoInfo['p'])) {
-                        $episode = intval($videoInfo['p']);
-                    }
-                }
+            $apiResult = $this->parseByApi($vid);
+            if ($apiResult) {
+                $apiName = $apiResult['name'];
+                $apiEpisode = $apiResult['episode'];
             }
         }
 
-        if (empty($name) || $this->isDefaultTitle($name)) {
-            $html = $this->httpGet($url);
-            if ($html) {
-                $htmlName = $this->extractNameFromMeta($html);
-                if (empty($htmlName)) $htmlName = $this->extractNameFromTitle($html);
-                if (empty($htmlName)) $htmlName = $this->extractNameFromJsonLd($html);
+        $smartResult = $this->parseSmart($url, $parsedUrl);
 
-                if (!empty($htmlName) && !$this->isDefaultTitle($htmlName)) {
-                    $name = $htmlName;
-                    $episode = $this->extractEpisodeFromHtml($html, $episode);
-                }
+        if ($apiName && !$this->isDefaultOrInvalid($apiName)) {
+            $cleaned = $this->cleanTitle($apiName);
+            if ($cleaned && mb_strlen($cleaned, 'UTF-8') >= 2) {
+                return ['name' => $cleaned, 'episode' => $apiEpisode, 'source' => 'api'];
             }
         }
 
-        if (!empty($name)) {
-            $name = $this->cleanTitle($name);
-            return ['name' => $name, 'episode' => $episode];
+        if ($smartResult) {
+            return $smartResult;
         }
 
         return false;
     }
 
-    private function extractVid($url, $path, $queryParams)
+    private function extractVid($path, $queryParams)
     {
         if (isset($queryParams['vid']) && !empty($queryParams['vid'])) {
             return $queryParams['vid'];
@@ -72,41 +60,38 @@ class TencentParser extends BaseParser
             return $matches[1];
         }
 
-        if (preg_match('/page\/([a-zA-Z0-9]+)\.html/', $path, $matches)) {
+        if (preg_match('/x\/cover\/[^\/]+\/([a-zA-Z0-9]+)\.html/', $path, $matches)) {
             return $matches[1];
         }
 
-        if (preg_match('/x\/cover\/[^\/]+\/([a-zA-Z0-9]+)\.html/', $path, $matches)) {
+        if (preg_match('/page\/([a-zA-Z0-9]+)\.html/', $path, $matches)) {
             return $matches[1];
         }
 
         return '';
     }
 
-    private function isDefaultTitle($title)
+    private function parseByApi($vid)
     {
-        $defaultKeywords = [
-            '腾讯视频',
-            'v.qq.com',
-            '中国',
-            '热门',
-            '电视剧',
-            '电影',
-            '综艺',
-            '动漫',
-            '少儿',
-        ];
+        $apiUrl = 'https://vv.video.qq.com/getinfo?vids=' . $vid . '&platform=101001&charge=0&otype=json';
+        $response = $this->httpGet($apiUrl);
+        if (!$response) return false;
 
-        foreach ($defaultKeywords as $keyword) {
-            if ($title === $keyword) {
-                return true;
-            }
+        $response = trim($response);
+        $jsonStr = preg_replace('/^QZOutputJson=/', '', $response);
+        $jsonStr = rtrim($jsonStr, ';');
+        $json = json_decode($jsonStr, true);
+
+        if (!$json || !isset($json['vl']['vi'][0])) return false;
+
+        $videoInfo = $json['vl']['vi'][0];
+        $name = $videoInfo['ti'] ?? '';
+        $episode = 1;
+        if (isset($videoInfo['p']) && is_numeric($videoInfo['p'])) {
+            $episode = intval($videoInfo['p']);
         }
 
-        if (mb_strlen($title, 'UTF-8') < 2) {
-            return true;
-        }
-
-        return false;
+        if (empty($name)) return false;
+        return ['name' => $name, 'episode' => $episode];
     }
 }
