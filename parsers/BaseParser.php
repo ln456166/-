@@ -415,6 +415,17 @@ abstract class BaseParser
         // 清理连续的特殊符号开头
         $title = preg_replace('/^[\s_-】\]\[【\[]+/u', '', $title);
 
+        // 清理版本后缀：普通话版、粤语版、英文版、日语版、原版、高清版、蓝光版、4K版等
+        $title = preg_replace('/[（(\[【]\s*(普通话|粤语|英语|英文|日语|日文|韩语|韩文|国语|原声|原版|高清|蓝光|4K|超清|标清|无删减|完整版|上下集|上集|下集)\s*版?\s*[）)\]】]?/u', '', $title);
+        // 清理尾部不完整的版本描述（如：（普通话版）
+        $title = preg_replace('/[（(\[【]\s*(普通话|粤语|英语|英文|日语|日文|韩语|韩文|国语|原声|原版|高清|蓝光|4K|超清|标清|无删减|完整版)\s*版?\s*$/u', '', $title);
+        // 清理不带括号的 XX版 结尾
+        $title = preg_replace('/\s*(普通话|粤语|英语|英文|日语|日文|韩语|韩文|国语|原声|原版|高清|蓝光|4K|超清|标清|无删减|完整版|上下集)\s*版\s*$/u', '', $title);
+
+        // 清理年份后缀（如：2024、2023）
+        $title = preg_replace('/[（(\[【\s]\s*\d{4}\s*[）)\]】\s]?$/u', '', $title);
+        $title = preg_replace('/\s*\d{4}$/u', '', $title);
+
         $separators = ['-', '_', '|', '｜', '—', '·', '~', '～'];
         $title = $this->removeSiteSuffixFromSeparators($title, $separators);
 

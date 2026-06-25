@@ -126,23 +126,87 @@ class VideoReplace
         $cached = $this->getCache($cacheKey);
         if ($cached) return $cached;
 
-        $apiUrl = $this->config['resource_api'] . '?ac=list&wd=' . urlencode($name);
-        $response = $this->httpGet($apiUrl);
-        if (!$response) return false;
+        $searchKeywords = $this->buildSearchKeywords($name);
 
-        $data = json_decode($response, true);
-        if (!$data || !isset($data['list']) || empty($data['list'])) return false;
+        foreach ($searchKeywords as $keyword) {
+            if (empty($keyword) || mb_strlen($keyword, 'UTF-8') < 2) continue;
 
-        $bestMatch = $this->findBestMatch($name, $data['list']);
-        if (!$bestMatch) return false;
+            $apiUrl = $this->config['resource_api'] . '?ac=list&wd=' . urlencode($keyword);
+            $response = $this->httpGet($apiUrl);
+            if (!$response) continue;
 
-        $videoDetail = $this->getVideoDetail($bestMatch['vod_id']);
-        if ($videoDetail) {
-            $this->setCache($cacheKey, $videoDetail, $this->config['cache_time']);
-            return $videoDetail;
+            $data = json_decode($response, true);
+            if (!$data || !isset($data['list']) || empty($data['list'])) continue;
+
+            $bestMatch = $this->findBestMatch($name, $data['list']);
+            if ($bestMatch) {
+                $videoDetail = $this->getVideoDetail($bestMatch['vod_id']);
+                if ($videoDetail) {
+                    $this->setCache($cacheKey, $videoDetail, $this->config['cache_time']);
+                    return $videoDetail;
+                }
+            }
         }
 
         return false;
+    }
+
+    private function buildSearchKeywords($name)
+    {
+        $keywords = [];
+        $name = trim($name);
+        if (empty($name)) return $keywords;
+
+        $keywords[] = $name;
+
+        // 去除版本后缀后的名称
+        $cleaned = preg_replace('/[（(\[【]\s*(普通话|粤语|英语|日语|韩语|国语|原声|原版|高清|蓝光|4K|超清|标清|无删减|完整版)\s*[）)\]】]?/u', '', $name);
+        $cleaned = trim($cleaned, " \t-_（）()【】[]");
+        if ($cleaned != $name && mb_strlen($cleaned, 'UTF-8') >= 2) {
+            $keywords[] = $cleaned;
+        }
+
+        // 去除季/部后缀
+        $noSeason = preg_replace('/第[一二三四五六七八九十百千\d]+[季部]/u', '', $name);
+        $noSeason = trim($noSeason, " \t-_");
+        if ($noSeason != $name && mb_strlen($noSeason, 'UTF-8') >= 2) {
+            $keywords[] = $noSeason;
+        }
+
+        // 去除年份后缀
+        $noYear = preg_replace('/[（(\[【\s]\s*\d{4}\s*[）)\]】\s]?$/u', '', $name);
+        $noYear = trim($noYear, " \t-_");
+        if ($noYear != $name && mb_strlen($noYear, 'UTF-8') >= 2) {
+            $keywords[] = $noYear;
+        }
+
+        // 去掉"版"字结尾的后缀
+        $noVersion = preg_replace('/[（(\[【]?[^（(\[【]{0,6}版[）)\]】]?$/u', '', $name);
+        $noVersion = trim($noVersion, " \t-_（）()");
+        if ($noVersion != $name && mb_strlen($noVersion, 'UTF-8') >= 2) {
+            $keywords[] = $noVersion;
+        }
+
+        // 取前4-6个字做模糊搜索
+        $len = mb_strlen($name, 'UTF-8');
+        if ($len > 6) {
+            for ($i = 6; $i >= 4; $i--) {
+                $short = mb_substr($name, 0, $i, 'UTF-8');
+                if (mb_strlen($short, 'UTF-8') >= 2) {
+                    $keywords[] = $short;
+                }
+            }
+        }
+
+        $unique = [];
+        foreach ($keywords as $kw) {
+            $kw = trim($kw);
+            if (!empty($kw) && !in_array($kw, $unique) && mb_strlen($kw, 'UTF-8') >= 2) {
+                $unique[] = $kw;
+            }
+        }
+
+        return array_slice($unique, 0, 8);
     }
 
     private function findBestMatch($name, $list)
@@ -181,7 +245,7 @@ class VideoReplace
             }
         }
 
-        return ($bestScore >= 25) ? $bestMatch : null;
+        return ($bestScore >= 15) ? $bestMatch : null;
     }
 
     private function normalizeName($name)
