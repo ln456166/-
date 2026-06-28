@@ -10,8 +10,17 @@ if ($format !== 'm3u8' && $format !== 'json') {
     $format = 'json';
 }
 
+$nocache = isset($_GET['nocache']) ? $_GET['nocache'] : 0;
+$cache_enabled = (VS__ == 1) && ($nocache == 0);
+
 if ($format === 'json') {
     header('Content-type: text/json;charset=utf-8');
+}
+
+if (!$cache_enabled) {
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+    header('Pragma: no-cache');
+    header('Expires: 0');
 }
 
 if (!file_exists(PATH)) {
@@ -89,7 +98,12 @@ if (!preg_match('/mgtv\.com/i', $url)) {
 
 $ep_file = PATH . '/' . md5($url) . '.m3u8';
 
-if (!file_exists($ep_file) || filemtime($ep_file) + VS_ < time() || VS__ == 0) {
+$need_parse = true;
+if ($cache_enabled && file_exists($ep_file) && filemtime($ep_file) + VS_ >= time()) {
+    $need_parse = false;
+}
+
+if ($need_parse) {
 
     $vid = '';
     $cid = '';
@@ -288,10 +302,16 @@ if (!file_exists($ep_file) || filemtime($ep_file) + VS_ < time() || VS__ == 0) {
         $m3u8_content
     );
 
-    file_put_contents($ep_file, $hls);
+    if ($cache_enabled) {
+        file_put_contents($ep_file, $hls);
+    }
 }
 
-$m3u8_content = @file_get_contents($ep_file);
+if ($need_parse) {
+    $m3u8_content = $hls;
+} else {
+    $m3u8_content = @file_get_contents($ep_file);
+}
 
 if (empty($m3u8_content)) {
     if ($format === 'm3u8') {
@@ -313,8 +333,11 @@ if (empty($m3u8_content)) {
         $videoinfo['success'] = 1;
         $videoinfo['code'] = 200;
         $videoinfo['type'] = 'm3u8';
-        $videoinfo['url'] = 'http://' . $_SERVER['HTTP_HOST'] . '/' . $ep_file;
+        if ($cache_enabled) {
+            $videoinfo['url'] = 'http://' . $_SERVER['HTTP_HOST'] . '/' . $ep_file;
+        }
         $videoinfo['direct_url'] = 'http://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'] . '?url=' . urlencode($url) . '&format=m3u8';
+        $videoinfo['cached'] = $cache_enabled && !$need_parse ? 1 : 0;
         echo json_encode($videoinfo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
     exit;
