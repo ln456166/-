@@ -97,10 +97,16 @@ if (!preg_match('/mgtv\.com/i', $url)) {
 }
 
 $ep_file = PATH . '/' . md5($url) . '.m3u8';
+$url_file = PATH . '/' . md5($url) . '.url';
 
 $need_parse = true;
+$real_m3u8_url = '';
+
 if ($cache_enabled && file_exists($ep_file) && filemtime($ep_file) + VS_ >= time()) {
     $need_parse = false;
+    if (file_exists($url_file)) {
+        $real_m3u8_url = trim(file_get_contents($url_file));
+    }
 }
 
 if ($need_parse) {
@@ -304,7 +310,10 @@ if ($need_parse) {
 
     if ($cache_enabled) {
         file_put_contents($ep_file, $hls);
+        file_put_contents($url_file, $m3u8_url);
     }
+
+    $real_m3u8_url = $m3u8_url;
 }
 
 if ($need_parse) {
@@ -333,10 +342,11 @@ if (empty($m3u8_content)) {
         $videoinfo['success'] = 1;
         $videoinfo['code'] = 200;
         $videoinfo['type'] = 'm3u8';
+        $videoinfo['url'] = $real_m3u8_url;
         if ($cache_enabled) {
-            $videoinfo['url'] = 'http://' . $_SERVER['HTTP_HOST'] . '/' . $ep_file;
+            $videoinfo['cache_url'] = 'http://' . $_SERVER['HTTP_HOST'] . '/' . $ep_file;
         }
-        $videoinfo['direct_url'] = 'http://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'] . '?url=' . urlencode($url) . '&format=m3u8';
+        $videoinfo['proxy_url'] = 'http://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'] . '?url=' . urlencode($url) . '&format=m3u8';
         $videoinfo['cached'] = $cache_enabled && !$need_parse ? 1 : 0;
         echo json_encode($videoinfo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
