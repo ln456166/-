@@ -5,6 +5,23 @@ define('VS_', 600);
 define('VS__', 1);
 define('PATH', 'cache/mg');
 
+$ts_url = isset($_GET['ts']) ? $_GET['ts'] : '';
+if (!empty($ts_url)) {
+    $real_ts_url = base64_decode(str_replace(array('-', '_'), array('+', '/'), $ts_url));
+    if (!empty($real_ts_url) && preg_match('/^https?:\/\//i', $real_ts_url)) {
+        $ts_content = curl_request($real_ts_url, 'https://www.mgtv.com/', '');
+        if (!empty($ts_content)) {
+            header('Content-Type: video/mp2t');
+            header('Access-Control-Allow-Origin: *');
+            echo $ts_content;
+        } else {
+            header('HTTP/1.1 500 Internal Server Error');
+            echo 'TS proxy error';
+        }
+        exit;
+    }
+}
+
 $format = isset($_GET['format']) ? $_GET['format'] : 'json';
 if ($format !== 'm3u8' && $format !== 'json') {
     $format = 'json';
@@ -337,7 +354,18 @@ if (empty($m3u8_content)) {
         header('Content-Type: application/vnd.apple.mpegurl');
         header('Content-Disposition: inline; filename="video.m3u8"');
         header('Access-Control-Allow-Origin: *');
-        echo $m3u8_content;
+
+        $proxy_m3u8 = preg_replace_callback(
+            '/^(https?:\/\/[^\s]+\.ts[^\s]*)$/m',
+            function ($matches) {
+                $ts_encoded = str_replace(array('+', '/', '='), array('-', '_', ''), base64_encode($matches[1]));
+                $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+                return $protocol . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'] . '?ts=' . $ts_encoded;
+            },
+            $m3u8_content
+        );
+
+        echo $proxy_m3u8;
     } else {
         $videoinfo['success'] = 1;
         $videoinfo['code'] = 200;
