@@ -5,7 +5,7 @@ define('VS_', 600);
 define('VS__', 1);
 define('PATH', 'cache/mg');
 define('PROXY_ENABLED', 1);
-define('DEFAULT_DEF', 3);
+define('DEFAULT_DEF', 0);
 
 $ts_url = isset($_GET['ts']) ? $_GET['ts'] : '';
 if (!empty($ts_url)) {
@@ -407,18 +407,7 @@ if (empty($m3u8_content)) {
             $videoinfo['url'] = $url_to_use;
         }
 
-        $videoinfo['def'] = $select_def;
         $videoinfo['label'] = $select_label;
-
-        $definitions = array();
-        krsort($all_urls);
-        foreach ($all_urls as $def => $info) {
-            $definitions[] = array(
-                'def' => $def,
-                'label' => $info['label']
-            );
-        }
-        $videoinfo['definitions'] = $definitions;
 
         echo json_encode($videoinfo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
