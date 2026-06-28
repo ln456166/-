@@ -325,8 +325,20 @@ if ($need_parse) {
         $m3u8_content
     );
 
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+    $proxy_base = $protocol . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'] . '?ts=';
+
+    $hls_proxy = preg_replace_callback(
+        '/^(https?:\/\/[^\s]+\.ts[^\s]*)$/m',
+        function ($matches) use ($proxy_base) {
+            $ts_encoded = str_replace(array('+', '/', '='), array('-', '_', ''), base64_encode($matches[1]));
+            return $proxy_base . $ts_encoded;
+        },
+        $hls
+    );
+
     if ($cache_enabled) {
-        file_put_contents($ep_file, $hls);
+        file_put_contents($ep_file, $hls_proxy);
         file_put_contents($url_file, $m3u8_url);
     }
 
@@ -334,7 +346,7 @@ if ($need_parse) {
 }
 
 if ($need_parse) {
-    $m3u8_content = $hls;
+    $m3u8_content = $hls_proxy;
 } else {
     $m3u8_content = @file_get_contents($ep_file);
 }
@@ -354,18 +366,7 @@ if (empty($m3u8_content)) {
         header('Content-Type: application/vnd.apple.mpegurl');
         header('Content-Disposition: inline; filename="video.m3u8"');
         header('Access-Control-Allow-Origin: *');
-
-        $proxy_m3u8 = preg_replace_callback(
-            '/^(https?:\/\/[^\s]+\.ts[^\s]*)$/m',
-            function ($matches) {
-                $ts_encoded = str_replace(array('+', '/', '='), array('-', '_', ''), base64_encode($matches[1]));
-                $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-                return $protocol . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'] . '?ts=' . $ts_encoded;
-            },
-            $m3u8_content
-        );
-
-        echo $proxy_m3u8;
+        echo $m3u8_content;
     } else {
         $videoinfo['success'] = 1;
         $videoinfo['code'] = 200;
