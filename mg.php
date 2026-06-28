@@ -4,6 +4,8 @@ error_reporting(0);
 define('VS_', 600);
 define('VS__', 1);
 define('PATH', 'cache/mg');
+define('PROXY_ENABLED', 1);
+define('DEFAULT_DEF', 3);
 
 $ts_url = isset($_GET['ts']) ? $_GET['ts'] : '';
 if (!empty($ts_url)) {
@@ -247,6 +249,16 @@ if ($need_parse) {
         exit;
     }
 
+    $def_labels = array(
+        1 => '270P',
+        2 => '360P',
+        3 => '480P',
+        4 => '720P',
+        5 => '1080P',
+        6 => '4K',
+    );
+
+    $all_urls = array();
     $best_def = 0;
     $best_stream_url = '';
     $best_domain = '';
@@ -254,12 +266,21 @@ if ($need_parse) {
     foreach ($stream as $key => $value) {
         if (!empty($value['url']) && isset($value['def'])) {
             $def = intval($value['def']);
-            if ($def > $best_def && $def != 1) {
+            if ($def != 1) {
                 $domain = isset($stream_domain[$key]) ? $stream_domain[$key] : (isset($stream_domain[0]) ? $stream_domain[0] : '');
                 if (!empty($domain)) {
-                    $best_stream_url = $value['url'];
-                    $best_domain = $domain;
-                    $best_def = $def;
+                    $dispatch_url = $domain . $value['url'];
+                    $all_urls[$def] = array(
+                        'label' => isset($def_labels[$def]) ? $def_labels[$def] : $def . 'P',
+                        'def' => $def,
+                        'url' => $dispatch_url
+                    );
+
+                    if ($def > $best_def) {
+                        $best_stream_url = $value['url'];
+                        $best_domain = $domain;
+                        $best_def = $def;
+                    }
                 }
             }
         }
@@ -368,15 +389,37 @@ if (empty($m3u8_content)) {
         header('Access-Control-Allow-Origin: *');
         echo $m3u8_content;
     } else {
-        $videoinfo['success'] = 1;
-        $videoinfo['code'] = 200;
-        $videoinfo['type'] = 'm3u8';
-        $videoinfo['url'] = $real_m3u8_url;
-        if ($cache_enabled) {
-            $videoinfo['cache_url'] = 'http://' . $_SERVER['HTTP_HOST'] . '/' . $ep_file;
+        $select_def = isset($_GET['def']) ? intval($_GET['def']) : DEFAULT_DEF;
+
+        $url_to_use = '';
+        if ($select_def > 0 && isset($all_urls[$select_def])) {
+            $url_to_use = $all_urls[$select_def]['url'];
+            $select_label = $all_urls[$select_def]['label'];
+        } else {
+            $url_to_use = $best_domain . $best_stream_url;
+            $select_def = $best_def;
+            $select_label = isset($def_labels[$best_def]) ? $def_labels[$best_def] : $best_def . 'P';
         }
-        $videoinfo['proxy_url'] = 'http://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'] . '?url=' . urlencode($url) . '&format=m3u8';
-        $videoinfo['cached'] = $cache_enabled && !$need_parse ? 1 : 0;
+
+        if (PROXY_ENABLED) {
+            $videoinfo['url'] = 'http://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'] . '?url=' . urlencode($url) . '&def=' . $select_def . '&format=m3u8';
+        } else {
+            $videoinfo['url'] = $url_to_use;
+        }
+
+        $videoinfo['def'] = $select_def;
+        $videoinfo['label'] = $select_label;
+
+        $definitions = array();
+        krsort($all_urls);
+        foreach ($all_urls as $def => $info) {
+            $definitions[] = array(
+                'def' => $def,
+                'label' => $info['label']
+            );
+        }
+        $videoinfo['definitions'] = $definitions;
+
         echo json_encode($videoinfo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
     exit;
