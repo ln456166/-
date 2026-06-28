@@ -1,10 +1,18 @@
 <?php
 error_reporting(0);
-header('Content-type: text/json;charset=utf-8');
 
 define('VS_', 600);
 define('VS__', 1);
 define('PATH', 'cache/mg');
+
+$format = isset($_GET['format']) ? $_GET['format'] : 'json';
+if ($format !== 'm3u8' && $format !== 'json') {
+    $format = 'json';
+}
+
+if ($format === 'json') {
+    header('Content-type: text/json;charset=utf-8');
+}
 
 if (!file_exists(PATH)) {
     mkdir(PATH, 0777, true);
@@ -283,19 +291,32 @@ if (!file_exists($ep_file) || filemtime($ep_file) + VS_ < time() || VS__ == 0) {
     file_put_contents($ep_file, $hls);
 }
 
-$json = @file_get_contents($ep_file);
+$m3u8_content = @file_get_contents($ep_file);
 
-if (empty($json)) {
-    $videoinfo['code'] = 404;
-    $videoinfo['msg'] = '解析失败，缓存文件为空';
-    echo json_encode($videoinfo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+if (empty($m3u8_content)) {
+    if ($format === 'm3u8') {
+        header('HTTP/1.1 500 Internal Server Error');
+        echo '解析失败，缓存文件为空';
+    } else {
+        $videoinfo['code'] = 404;
+        $videoinfo['msg'] = '解析失败，缓存文件为空';
+        echo json_encode($videoinfo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    }
     die;
 } else {
-    $videoinfo['success'] = 1;
-    $videoinfo['code'] = 200;
-    $videoinfo['type'] = 'm3u8';
-    $videoinfo['url'] = 'http://' . $_SERVER['HTTP_HOST'] . '/' . $ep_file;
-    echo json_encode($videoinfo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($format === 'm3u8') {
+        header('Content-Type: application/vnd.apple.mpegurl');
+        header('Content-Disposition: inline; filename="video.m3u8"');
+        header('Access-Control-Allow-Origin: *');
+        echo $m3u8_content;
+    } else {
+        $videoinfo['success'] = 1;
+        $videoinfo['code'] = 200;
+        $videoinfo['type'] = 'm3u8';
+        $videoinfo['url'] = 'http://' . $_SERVER['HTTP_HOST'] . '/' . $ep_file;
+        $videoinfo['direct_url'] = 'http://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'] . '?url=' . urlencode($url) . '&format=m3u8';
+        echo json_encode($videoinfo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    }
     exit;
 }
 
